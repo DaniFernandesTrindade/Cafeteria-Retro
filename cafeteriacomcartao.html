@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cafeteria Retrô</title>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="container brand">
+      <h1>Cafeteria Retrô</h1>
+      <p class="tagline">Sabores e aromas dos anos 70 ☕</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <section>
+        <h2>Cardápio</h2>
+        <div class="items" id="menu"></div>
+      </section>
+
+      <aside>
+        <div class="cart">
+          <h2>Carrinho</h2>
+          <div id="cart-empty" class="cart-empty">Carrinho vazio</div>
+          <div id="cart-list"></div>
+          <div class="totals" id="totals" hidden>
+            <div class="line"><span>Subtotal</span><span id="subtotal">R$ 0,00</span></div>
+            <div class="line"><span>Taxa (10%)</span><span id="tax">R$ 0,00</span></div>
+            <div class="line"><strong>Total</strong><strong id="total">R$ 0,00</strong></div>
+            <button class="btn checkout" id="btn-checkout" disabled>Finalizar Pedido</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  
+  <dialog id="checkout-modal">
+    <div class="modal-body">
+      <div id="order-summary"></div>
+      <input id="name" placeholder="Seu nome" required />
+      <select id="payment">
+        <option value="">Forma de pagamento</option>
+        <option value="card">Cartão</option>
+        <option value="pix">PIX</option>
+        <option value="cash">Dinheiro</option>
+      </select>
+
+      
+      <div id="payment-details"></div>
+
+      <div class="success" id="success" hidden>Pedido confirmado! ☕</div>
+      <button class="btn" id="confirm-order">Confirmar</button>
+      <button class="btn" onclick="modal.close()">Cancelar</button>
+    </div>
+  </dialog>
+
+  <footer>© <span id="year"></span> Cafeteria Retrô Por Daniella Fernandes</footer>
+
+<script>
+const MENU = [
+  { id:"Capuccino", name:"Capuccino", img:"capuccino.jpg" , desc:"Com espuma de leite e canela.", price:6.50 },
+  { id:"Frapuccino", name:"Frapuccino", img:"frappuccino.jpg", desc:"Gelado e delicioso.", price:9.90 },
+  { id:"Cinnamonroll", name:"Cinnamon Roll", img:"cinnamonroll.jpg", desc:"Doce com canela e açúcar.", price:7.00 },
+  { id:"Donuts", name:"Donuts", img:"donuts.jpg", desc:"Macio, doce e irresistível.", price:5.00 },
+  { id:"mocha", name:"Mocha Retrô", img:"mocha.jpg", desc:"Café com chocolate e chantilly.", price:11.00 },
+];
+
+const state={cart:new Map()};
+const menuEl=document.getElementById("menu");
+
+MENU.forEach(item=>{
+  const card=document.createElement("article");
+  card.className="card";
+  card.innerHTML=`
+    <img src="${item.img}" alt="${item.name}">
+    <h3>${item.name}</h3>
+    <p class="desc">${item.desc}</p>
+    <div class="price">R$ ${item.price.toFixed(2)}</div>
+    <div class="actions">
+      <div class="qty-control"><button data-act="dec">-</button><span data-role="qty">1</span><button data-act="inc">+</button></div>
+      <button class="btn" data-add="${item.id}">Adicionar</button>
+    </div>`;
+  let qty=1;
+  const qtyEl=card.querySelector("[data-role=qty]");
+  card.querySelectorAll("[data-act]").forEach(btn=>btn.onclick=()=>{
+    qty=btn.dataset.act==="inc"?qty+1:Math.max(1,qty-1);
+    qtyEl.textContent=qty;
+  });
+  card.querySelector("[data-add]").onclick=()=>{
+    const current=state.cart.get(item.id)||{...item,qty:0};
+    current.qty+=qty;state.cart.set(item.id,current);
+    renderCart();qty=1;qtyEl.textContent=1;
+  };
+  menuEl.appendChild(card);
+});
+
+function money(n){return n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});}
+const cartList=document.getElementById("cart-list"),
+      cartEmpty=document.getElementById("cart-empty"),
+      totals=document.getElementById("totals"),
+      subtotalEl=document.getElementById("subtotal"),
+      taxEl=document.getElementById("tax"),
+      totalEl=document.getElementById("total"),
+      btnCheckout=document.getElementById("btn-checkout");
+
+function renderCart(){
+  cartList.innerHTML="";
+  const entries=[...state.cart.values()];
+  if(!entries.length){cartEmpty.hidden=false;totals.hidden=true;btnCheckout.disabled=true;return;}
+  cartEmpty.hidden=true;totals.hidden=false;
+  let subtotal=0;
+  entries.forEach(e=>{
+    subtotal+=e.price*e.qty;
+    const row=document.createElement("div");
+    row.className="cart-item";
+    row.innerHTML=`<span>${e.qty}× ${e.name}</span><div class="cart-controls"><button onclick="updateQty('${e.id}',-1)">-</button><button onclick="updateQty('${e.id}',1)">+</button></div>`;
+    cartList.appendChild(row);
+  });
+  const tax=subtotal*0.1,total=subtotal+tax;
+  subtotalEl.textContent=money(subtotal);
+  taxEl.textContent=money(tax);
+  totalEl.textContent=money(total);
+  btnCheckout.disabled=false;
+}
+
+function updateQty(id,d){
+  const c=state.cart.get(id);
+  if(!c)return;
+  c.qty+=d;
+  if(c.qty<=0)state.cart.delete(id);else state.cart.set(id,c);
+  renderCart();
+}
+
+const modal=document.getElementById("checkout-modal");
+btnCheckout.onclick=()=>{
+  const lines=[...state.cart.values()].map(e=>`${e.qty}× ${e.name} — ${money(e.price*e.qty)}`).join("\n");
+  document.getElementById("order-summary").textContent=lines;
+  modal.showModal();
+};
+
+
+const paymentSelect = document.getElementById("payment");
+const paymentDetails = document.getElementById("payment-details");
+
+paymentSelect.onchange = () => {
+  paymentDetails.innerHTML = "";
+  if (paymentSelect.value === "pix") {
+    paymentDetails.innerHTML = `
+      <p><strong>Chave PIX:</strong></p>
+      <input type="text" value="cafeteriaretro@pix.com" readonly onclick="this.select()" />
+      <p class="hint">Clique para copiar</p>
+    `;
+  }
+  else if (paymentSelect.value === "card") {
+    paymentDetails.innerHTML = `
+      <input type="text" id="card-number" placeholder="Número do cartão" maxlength="16" required />
+      <input type="text" id="card-expiry" placeholder="Validade (MM/AA)" maxlength="5" required />
+      <input type="text" id="card-cvv" placeholder="CVV" maxlength="3" required />
+    `;
+  }
+};
+
+
+document.getElementById("confirm-order").onclick = () => {
+  const name = document.getElementById("name").value.trim();
+  const payment = paymentSelect.value;
+
+  if (!name || !payment) {
+    alert("Preencha nome e forma de pagamento");
+    return;
+  }
+
+  if (payment === "card") {
+    const cardNum = document.getElementById("card-number")?.value;
+    const cardExp = document.getElementById("card-expiry")?.value;
+    const cardCVV = document.getElementById("card-cvv")?.value;
+    if (!cardNum || !cardExp || !cardCVV) {
+      alert("Preencha os dados do cartão");
+      return;
+    }
+  }
+
+  document.getElementById("success").hidden = false;
+  state.cart.clear();
+  renderCart();
+  setTimeout(() => modal.close(), 1500);
+};
+
+document.getElementById("year").textContent=new Date().getFullYear();
+renderCart();
+</script>
+</body>
+</html>
